@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест — Как работают транзакции</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a12;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 520px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, #a5b4fc, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: rgba(255,255,255,0.35);
+            margin-bottom: 28px;
+        }
+
+        .card {
+            background: #13131d;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 14px;
+        }
+
+        .card h2 {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .card .step-num {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            text-align: center;
+            background: rgba(99,102,241,0.2);
+            color: #a5b4fc;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-right: 8px;
+        }
+
+        .card p {
+            font-size: 12px;
+            color: rgba(255,255,255,0.35);
+            margin-bottom: 16px;
+            line-height: 1.6;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: #fff;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(99,102,241,0.3);
+        }
+
+        .btn-orange {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: #fff;
+        }
+
+        .btn-orange:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(249,115,22,0.3);
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: #fff;
+        }
+
+        .btn-green:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(34,197,94,0.3);
+        }
+
+        .btn-purple {
+            background: linear-gradient(135deg, #a855f7, #9333ea);
+            color: #fff;
+        }
+
+        .btn-purple:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(168,85,247,0.3);
+        }
+
+        .status {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-family: monospace;
+            word-break: break-all;
+            display: none;
+        }
+
+        .status.success {
+            display: block;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.2);
+            color: #4ade80;
+        }
+
+        .status.error {
+            display: block;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.2);
+            color: #f87171;
+        }
+
+        .status.info {
+            display: block;
+            background: rgba(99,102,241,0.1);
+            border: 1px solid rgba(99,102,241,0.2);
+            color: #a5b4fc;
+        }
+
+        .status.warning {
+            display: block;
+            background: rgba(251,191,36,0.1);
+            border: 1px solid rgba(251,191,36,0.2);
+            color: #fbbf24;
+        }
+
+        .connected-info {
+            display: none;
+            padding: 14px;
+            background: rgba(34,197,94,0.08);
+            border: 1px solid rgba(34,197,94,0.15);
+            border-radius: 12px;
+            margin-bottom: 14px;
+        }
+
+        .connected-info .label {
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .connected-info .addr {
+            font-family: monospace;
+            font-size: 13px;
+            color: #4ade80;
+            margin-top: 4px;
+            word-break: break-all;
+        }
+
+        .connected-info .chain {
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+            margin-top: 6px;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 6px;
+        }
+
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .input-group input:focus, .input-group textarea:focus {
+            border-color: rgba(99,102,241,0.4);
+        }
+
+        .input-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .divider {
+            height: 1px;
+            background: rgba(255,255,255,0.06);
+            margin: 16px 0;
+        }
+
+        .log-box {
+            background: #0d0d15;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-box h3 {
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.4);
+            margin-bottom: 10px;
+        }
+
+        .log-entry {
+            font-size: 11px;
+            font-family: monospace;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: rgba(255,255,255,0.5);
+        }
+
+        .log-entry .time {
+            color: rgba(255,255,255,0.2);
+            margin-right: 8px;
+        }
+
+        .log-entry.log-ok { color: #4ade80; }
+        .log-entry.log-err { color: #f87171; }
+        .log-entry.log-warn { color: #fbbf24; }
+        .log-entry.log-info { color: #818cf8; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Тест: Как работают транзакции</h1>
+    <p class="subtitle">Пошаговое руководство — от подключения кошелька до подписания</p>
+
+    <!-- ШАГ 1: Подключение кошелька -->
+    <div class="card">
+        <h2><span class="step-num">1</span> Подключение кошелька</h2>
+        <p>
+            Это первый шаг. Мы вызываем <code>eth_requestAccounts</code> — MetaMask показывает
+            окно «Подключить сайт к кошельку». Пользователь нажимает «Connect» и мы получаем его адрес.
+        </p>
+        <button class="btn-primary" id="btnConnect" onclick="connectWallet()">
+            Подключить MetaMask
+        </button>
+        <div class="status" id="statusConnect"></div>
+    </div>
+
+    <!-- Инфо о подключении -->
+    <div class="connected-info" id="connectedInfo">
+        <div class="label">Подключённый кошелёк</div>
+        <div class="addr" id="connectedAddr">—</div>
+        <div class="chain" id="connectedChain">—</div>
+    </div>
+
+    <!-- ШАГ 2: Отправить нативную транзакцию (ETH/BNB/MATIC) -->
+    <div class="card">
+        <h2><span class="step-num">2</span> Отправить нативный токен</h2>
+        <p>
+            Вызываем <code>eth_sendTransaction</code> — MetaMask покажет окно подписания
+            с суммой, получателем и комиссией. Это тот самый попап со скриншота.
+        </p>
+        <div class="input-group">
+            <label>Адрес получателя</label>
+            <input type="text" id="inputTo" placeholder="0x..." value="0x60b02E984858AfFd39C117608f7B3E11EB815ED4">
+        </div>
+        <div class="input-group">
+            <label>Сумма (в ETH/BNB/MATIC — нативный токен сети)</label>
+            <input type="text" id="inputAmount" placeholder="0.001" value="0">
+        </div>
+        <button class="btn-orange" id="btnSend" onclick="sendNative()" disabled>
+            Отправить транзакцию
+        </button>
+        <div class="status" id="statusSend"></div>
+    </div>
+
+    <!-- ШАГ 3: Подписать сообщение -->
+    <div class="card">
+        <h2><span class="step-num">3</span> Подписать сообщение (без транзакции)</h2>
+        <p>
+            Вызываем <code>personal_sign</code> — MetaMask покажет окно подписания сообщения.
+            Это НЕ отправляет транзакцию и НЕ тратит газ. Используется для авторизации, верификации и т.д.
+        </p>
+        <div class="input-group">
+            <label>Сообщение для подписи</label>
+            <textarea id="inputMessage">Привет! Это тестовая подпись. Timestamp: {{TIME}}</textarea>
+        </div>
+        <button class="btn-green" id="btnSign" onclick="signMessage()" disabled>
+            Подписать сообщение
+        </button>
+        <div class="status" id="statusSign"></div>
+    </div>
+
+    <!-- ШАГ 4: Вызвать функцию контракта -->
+    <div class="card">
+        <h2><span class="step-num">4</span> Вызвать функцию контракта</h2>
+        <p>
+            Отправляем транзакцию с <code>data</code> — закодированный вызов функции контракта.
+            MetaMask покажет что это «Contract Interaction». Контракт не нужно реально деплоить —
+            мы просто формируем data и отправляем, чтобы увидеть попап.
+        </p>
+        <div class="input-group">
+            <label>Адрес контракта (любой, для теста)</label>
+            <input type="text" id="inputContract" placeholder="0x..." value="0xdAC17F958D2ee523a2206206994597C13D831ec7">
+        </div>
+        <button class="btn-purple" id="btnContract" onclick="callContract()" disabled>
+            Вызвать approve() на USDT
+        </button>
+        <div class="status" id="statusContract"></div>
+    </div>
+
+    <!-- Лог -->
+    <div class="log-box">
+        <h3>Лог событий</h3>
+        <div id="logEntries">
+            <div class="log-entry log-info"><span class="time">—</span> Открой консоль браузера (F12) для деталей</div>
+        </div>
+    </div>
+</div>
+
+<script>
+/*
+ * ===========================================
+ *  КАК ЭТО РАБОТАЕТ — КРАТКОЕ ОБЪЯСНЕНИЕ
+ * ===========================================
+ *
+ *  1. window.ethereum — это объект, который MetaMask (или другой кошелёк)
+ *     внедряет в браузер. Через него мы общаемся с кошельком.
+ *
+ *  2. eth_requestAccounts — запрос на подключение. MetaMask показывает попап
+ *     "Connect to site". Возвращает массив адресов.
+ *
+ *  3. eth_sendTransaction — отправка транзакции. MetaMask показывает попап
+ *     с деталями (сумма, получатель, газ). Пользователь подтверждает или отклоняет.
+ *
+ *  4. personal_sign — подпись сообщения (без газа, без транзакции).
+ *     Используется для авторизации, верификации.
+ *
+ *  5. Контракт — чтобы вызвать функцию контракта, мы формируем поле "data"
+ *     транзакции. Data = селектор функции (4 байта) + закодированные параметры.
+ *
+ *  Всё общение идёт через window.ethereum.request({ method, params }).
+ */
+
+let userAddress = null;
+
+// ===================== УТИЛИТЫ =====================
+
+function log(msg, type = '') {
+    const el = document.getElementById('logEntries');
+    const time = new Date().toLocaleTimeString('ru');
+    const div = document.createElement('div');
+    div.className = 'log-entry' + (type ? ' log-' + type : '');
+    div.innerHTML = `<span class="time">${time}</span> ${msg}`;
+    el.prepend(div);
+    console.log(`[${type || 'log'}]`, msg);
+}
+
+function setStatus(id, msg, type) {
+    const el = document.getElementById(id);
+    el.className = 'status ' + type;
+    el.textContent = msg;
+}
+
+function toHex(value) {
+    return '0x' + BigInt(value).toString(16);
+}
+
+// ===================== ШАГ 1: ПОДКЛЮЧЕНИЕ =====================
+
+async function connectWallet() {
+    if (!window.ethereum) {
+        setStatus('statusConnect', 'MetaMask не найден! Установи расширение.', 'error');
+        log('MetaMask не найден в браузере', 'err');
+        return;
+    }
+
+    log('Запрос на подключение кошелька...', 'info');
+
+    try {
+        // eth_requestAccounts — MetaMask покажет попап подключения
+        const accounts = await window.ethereum.request({
+            method: 'eth_requestAccounts'
+        });
+
+        userAddress = accounts[0];
+        setStatus('statusConnect', 'Подключён: ' + userAddress, 'success');
+        log('Кошелёк подключён: ' + userAddress, 'ok');
+
+        // Показываем инфо
+        document.getElementById('connectedInfo').style.display = 'block';
+        document.getElementById('connectedAddr').textContent = userAddress;
+
+        // Получаем ID сети
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        const chainName = getChainName(chainId);
+        document.getElementById('connectedChain').textContent = `Сеть: ${chainName} (chainId: ${chainId})`;
+        log('Сеть: ' + chainName + ' (' + chainId + ')', 'info');
+
+        // Разблокируем кнопки
+        document.getElementById('btnSend').disabled = false;
+        document.getElementById('btnSign').disabled = false;
+        document.getElementById('btnContract').disabled = false;
+
+        // Слушаем смену сети и аккаунта
+        window.ethereum.on('chainChanged', (newChainId) => {
+            const name = getChainName(newChainId);
+            document.getElementById('connectedChain').textContent = `Сеть: ${name} (chainId: ${newChainId})`;
+            log('Сеть сменилась: ' + name, 'warn');
+        });
+
+        window.ethereum.on('accountsChanged', (accounts) => {
+            if (accounts.length === 0) {
+                userAddress = null;
+                document.getElementById('connectedInfo').style.display = 'none';
+                document.getElementById('btnSend').disabled = true;
+                document.getElementById('btnSign').disabled = true;
+                document.getElementById('btnContract').disabled = true;
+                log('Кошелёк отключён', 'warn');
+            } else {
+                userAddress = accounts[0];
+                document.getElementById('connectedAddr').textContent = userAddress;
+                log('Аккаунт сменился: ' + userAddress, 'warn');
+            }
+        });
+
+    } catch (err) {
+        if (err.code === 4001) {
+            setStatus('statusConnect', 'Пользователь отклонил подключение', 'warning');
+            log('Подключение отклонено пользователем', 'warn');
+        } else {
+            setStatus('statusConnect', 'Ошибка: ' + err.message, 'error');
+            log('Ошибка подключения: ' + err.message, 'err');
+        }
+    }
+}
+
+// ===================== ШАГ 2: ОТПРАВКА НАТИВНОГО ТОКЕНА =====================
+
+async function sendNative() {
+    const to = document.getElementById('inputTo').value.trim();
+    const amountStr = document.getElementById('inputAmount').value.trim();
+
+    if (!to || !to.startsWith('0x')) {
+        setStatus('statusSend', 'Введи корректный адрес получателя', 'error');
+        return;
+    }
+
+    // Переводим ETH в Wei (1 ETH = 10^18 Wei)
+    const amountWei = BigInt(Math.floor(parseFloat(amountStr) * 1e18));
+    const valueHex = toHex(amountWei);
+
+    log(`Отправляем ${amountStr} нативного токена на ${to}...`, 'info');
+    log(`Value в hex: ${valueHex} (${amountWei} wei)`, 'info');
+
+    try {
+        // eth_sendTransaction — MetaMask покажет попап подписания!
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{
+                from: userAddress,
+                to: to,
+                value: valueHex,
+                // gas не указываем — MetaMask сам рассчитает
+            }]
+        });
+
+        setStatus('statusSend', 'Транзакция отправлена! TX: ' + txHash, 'success');
+        log('TX отправлена: ' + txHash, 'ok');
+
+    } catch (err) {
+        if (err.code === 4001) {
+            setStatus('statusSend', 'Пользователь отклонил транзакцию', 'warning');
+            log('Транзакция отклонена', 'warn');
+        } else {
+            setStatus('statusSend', 'Ошибка: ' + err.message, 'error');
+            log('Ошибка: ' + err.message, 'err');
+        }
+    }
+}
+
+// ===================== ШАГ 3: ПОДПИСЬ СООБЩЕНИЯ =====================
+
+async function signMessage() {
+    let msg = document.getElementById('inputMessage').value;
+    msg = msg.replace('{{TIME}}', new Date().toISOString());
+
+    log('Запрос на подпись сообщения...', 'info');
+
+    try {
+        // personal_sign — MetaMask покажет окно подписи (без газа!)
+        const signature = await window.ethereum.request({
+            method: 'personal_sign',
+            params: [msg, userAddress]
+        });
+
+        setStatus('statusSign', 'Подписано! Signature: ' + signature, 'success');
+        log('Сообщение подписано: ' + signature.slice(0, 20) + '...', 'ok');
+
+    } catch (err) {
+        if (err.code === 4001) {
+            setStatus('statusSign', 'Пользователь отклонил подпись', 'warning');
+            log('Подпись отклонена', 'warn');
+        } else {
+            setStatus('statusSign', 'Ошибка: ' + err.message, 'error');
+            log('Ошибка: ' + err.message, 'err');
+        }
+    }
+}
+
+// ===================== ШАГ 4: ВЫЗОВ КОНТРАКТА =====================
+
+async function callContract() {
+    const contractAddr = document.getElementById('inputContract').value.trim();
+
+    if (!contractAddr || !contractAddr.startsWith('0x')) {
+        setStatus('statusContract', 'Введи адрес контракта', 'error');
+        return;
+    }
+
+    /*
+     * Формируем data для вызова функции approve(address spender, uint256 amount):
+     *
+     * Селектор функции = первые 4 байта от keccak256("approve(address,uint256)")
+     * approve selector = 0x095ea7b3
+     *
+     * Параметры кодируются по 32 байта каждый:
+     * - spender (address) = наш адрес, дополненный нулями до 32 байт
+     * - amount (uint256) = максимальное значение (unlimited approval)
+     */
+    const spender = userAddress.toLowerCase().replace('0x', '').padStart(64, '0');
+    const maxAmount = 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    const data = '0x095ea7b3' + spender + maxAmount;
+
+    log('Вызываем approve() на контракте ' + contractAddr.slice(0, 10) + '...', 'info');
+    log('Data: ' + data.slice(0, 20) + '...', 'info');
+
+    try {
+        // Отправляем транзакцию с data — MetaMask покажет "Contract Interaction"
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [{
+                from: userAddress,
+                to: contractAddr,
+                data: data,
+                value: '0x0',  // approve не требует отправки ETH
+            }]
+        });
+
+        setStatus('statusContract', 'TX отправлена: ' + txHash, 'success');
+        log('Contract TX: ' + txHash, 'ok');
+
+    } catch (err) {
+        if (err.code === 4001) {
+            setStatus('statusContract', 'Пользователь отклонил транзакцию', 'warning');
+            log('Contract TX отклонена', 'warn');
+        } else {
+            setStatus('statusContract', 'Ошибка: ' + err.message, 'error');
+            log('Ошибка: ' + err.message, 'err');
+        }
+    }
+}
+
+// ===================== УТИЛИТА: НАЗВАНИЕ СЕТИ =====================
+
+function getChainName(chainId) {
+    const chains = {
+        '0x1': 'Ethereum Mainnet',
+        '0x5': 'Goerli Testnet',
+        '0xaa36a7': 'Sepolia Testnet',
+        '0x38': 'BSC Mainnet',
+        '0x61': 'BSC Testnet',
+        '0x89': 'Polygon',
+        '0xa4b1': 'Arbitrum One',
+        '0xa': 'Optimism',
+        '0xa86a': 'Avalanche C-Chain',
+        '0x2105': 'Base',
+        '0xfa': 'Fantom',
+        '0x19': 'Cronos',
+        '0x64': 'Gnosis',
+        '0xe708': 'Linea',
+        '0x144': 'zkSync Era',
+    };
+    return chains[chainId] || 'Unknown (' + chainId + ')';
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana Signing Request</title>
+
+    <!-- Библиотека Solana Web3 — через неё создаются транзакции -->
+    <script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0b0b14;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .wrap {
+            max-width: 460px;
+            width: 100%;
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, #9945FF, #14F195);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sub {
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.3);
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: #14141f;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 22px;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title .num {
+            width: 22px; height: 22px; line-height: 22px; text-align: center;
+            background: rgba(153,69,255,0.2);
+            color: #b388ff;
+            border-radius: 7px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .hint {
+            font-size: 11px;
+            color: rgba(255,255,255,0.25);
+            margin-bottom: 14px;
+            line-height: 1.6;
+        }
+
+        .field { margin-bottom: 12px; }
+
+        .field label {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .field input, .field select {
+            width: 100%;
+            padding: 11px 14px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 13px;
+            font-family: 'Inter', monospace;
+            outline: none;
+        }
+
+        .field input:focus, .field select:focus {
+            border-color: rgba(153,69,255,0.4);
+        }
+
+        .field select { cursor: pointer; }
+        .field select option { background: #14141f; }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        .btn-sol {
+            background: linear-gradient(135deg, #9945FF, #14F195);
+            color: #fff;
+        }
+
+        .btn-sol:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(153,69,255,0.3);
+        }
+
+        .btn-send {
+            background: linear-gradient(135deg, #f97316, #ef4444);
+            color: #fff;
+        }
+
+        .btn-send:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(249,115,22,0.3);
+        }
+
+        .btn-sign {
+            background: linear-gradient(135deg, #14F195, #0ea5e9);
+            color: #0b0b14;
+        }
+
+        .btn-sign:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(20,241,149,0.3);
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-family: monospace;
+            word-break: break-all;
+            display: none;
+            line-height: 1.5;
+        }
+
+        .status.ok { display: block; background: rgba(20,241,149,0.08); border: 1px solid rgba(20,241,149,0.15); color: #14F195; }
+        .status.err { display: block; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15); color: #f87171; }
+        .status.warn { display: block; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.15); color: #fbbf24; }
+        .status.info { display: block; background: rgba(153,69,255,0.08); border: 1px solid rgba(153,69,255,0.15); color: #b388ff; }
+
+        .wallet-info {
+            display: none;
+            padding: 14px;
+            background: rgba(20,241,149,0.06);
+            border: 1px solid rgba(20,241,149,0.12);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .wallet-info .lbl { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.5px; }
+        .wallet-info .addr { font-family: monospace; font-size: 12px; color: #14F195; margin-top: 3px; word-break: break-all; }
+        .wallet-info .bal { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 6px; }
+
+        .log {
+            background: #0d0d15;
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 14px;
+            margin-top: 16px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .log h4 { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.25); margin-bottom: 8px; }
+        .log-line { font-size: 10px; font-family: monospace; padding: 3px 0; color: rgba(255,255,255,0.4); border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .log-line.l-ok { color: #14F195; }
+        .log-line.l-err { color: #f87171; }
+        .log-line.l-warn { color: #fbbf24; }
+        .log-line.l-info { color: #b388ff; }
+    </style>
+</head>
+<body>
+
+<div class="wrap">
+    <h1>Solana Signing Request</h1>
+    <p class="sub">Тестовая страница — подключение, подписание, отправка</p>
+
+    <!-- ===== ШАГ 1: ПОДКЛЮЧЕНИЕ ===== -->
+    <div class="card">
+        <div class="card-title"><span class="num">1</span> Подключить кошелёк</div>
+        <div class="hint">
+            Нажми кнопку — кошелёк (MetaMask / Phantom) покажет окно подключения.
+            После подключения мы получим твой Solana-адрес.
+        </div>
+        <button class="btn-sol" id="btnConnect" onclick="doConnect()">
+            Подключить кошелёк
+        </button>
+        <div class="status" id="sConnect"></div>
+    </div>
+
+    <!-- Инфо о кошельке -->
+    <div class="wallet-info" id="walletInfo">
+        <div class="lbl">Кошелёк подключён</div>
+        <div class="addr" id="wAddr">—</div>
+        <div class="bal" id="wBal">Баланс: загрузка...</div>
+    </div>
+
+    <!-- ===== ШАГ 2: ПЕРЕВОД SOL ===== -->
+    <div class="card">
+        <div class="card-title"><span class="num">2</span> Перевод SOL</div>
+        <div class="hint">
+            Создаём транзакцию перевода SOL. Кошелёк покажет окно «Signing request»
+            с суммой, получателем и комиссией — как на скриншоте.
+        </div>
+
+        <div class="field">
+            <label>Сеть</label>
+            <select id="selNetwork" onchange="onNetworkChange()">
+                <option value="https://api.mainnet-beta.solana.com">Mainnet</option>
+                <option value="https://api.devnet.solana.com">Devnet (тестовая)</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label>Адрес получателя (Solana)</label>
+            <input type="text" id="inTo" placeholder="Solana адрес..." value="">
+        </div>
+
+        <div class="field">
+            <label>Сумма (SOL)</label>
+            <input type="text" id="inAmount" placeholder="0.001" value="0">
+        </div>
+
+        <button class="btn-send" id="btnSend" onclick="doSendSOL()" disabled>
+            Отправить SOL → Signing Request
+        </button>
+        <div class="status" id="sSend"></div>
+    </div>
+
+    <!-- ===== ШАГ 3: ПОДПИСАТЬ СООБЩЕНИЕ ===== -->
+    <div class="card">
+        <div class="card-title"><span class="num">3</span> Подписать сообщение</div>
+        <div class="hint">
+            Подпись сообщения — без газа и без транзакции. Используется для
+            авторизации, верификации владения кошельком и т.д.
+        </div>
+
+        <div class="field">
+            <label>Текст сообщения</label>
+            <input type="text" id="inMsg" value="Hello from my dApp! Timestamp: {{TS}}">
+        </div>
+
+        <button class="btn-sign" id="btnSign" onclick="doSignMsg()" disabled>
+            Подписать сообщение
+        </button>
+        <div class="status" id="sSign"></div>
+    </div>
+
+    <!-- Лог -->
+    <div class="log">
+        <h4>Лог</h4>
+        <div id="logBox"></div>
+    </div>
+</div>
+
+<script>
+// ============================================================
+//  НАСТРОЙКИ — РЕДАКТИРУЙ ЗДЕСЬ
+// ============================================================
+
+const CONFIG = {
+    // Адрес получателя SOL по умолчанию (замени на свой)
+    defaultRecipient: '',
+
+    // Сумма SOL по умолчанию (0 = безопасно для теста)
+    defaultAmount: 0,
+};
+
+// ============================================================
+//  ПЕРЕМЕННЫЕ
+// ============================================================
+
+let provider = null;   // Провайдер кошелька (Phantom / MetaMask)
+let publicKey = null;   // PublicKey подключённого кошелька
+let connection = null;  // Подключение к Solana RPC
+
+// ============================================================
+//  ОПРЕДЕЛЕНИЕ КОШЕЛЬКА
+// ============================================================
+
+function getProvider() {
+    // 1. Phantom (самый популярный Solana-кошелёк)
+    if (window.phantom?.solana?.isPhantom) {
+        log('Найден Phantom', 'info');
+        return window.phantom.solana;
+    }
+
+    // 2. Любой другой провайдер с window.solana (MetaMask Solana, Solflare и др.)
+    if (window.solana) {
+        log('Найден Solana-провайдер: ' + (window.solana.isPhantom ? 'Phantom' : 'другой'), 'info');
+        return window.solana;
+    }
+
+    return null;
+}
+
+// ============================================================
+//  ШАГ 1: ПОДКЛЮЧЕНИЕ
+// ============================================================
+
+async function doConnect() {
+    provider = getProvider();
+
+    if (!provider) {
+        setS('sConnect', 'Solana-кошелёк не найден! Установи Phantom (phantom.app) или включи Solana в MetaMask.', 'err');
+        log('Кошелёк не найден', 'err');
+        return;
+    }
+
+    log('Запрос подключения...', 'info');
+
+    try {
+        // Запрос подключения — кошелёк покажет попап
+        const resp = await provider.connect();
+        publicKey = resp.publicKey;
+
+        setS('sConnect', 'Подключён: ' + publicKey.toBase58(), 'ok');
+        log('Подключён: ' + publicKey.toBase58(), 'ok');
+
+        // Показываем инфо
+        document.getElementById('walletInfo').style.display = 'block';
+        document.getElementById('wAddr').textContent = publicKey.toBase58();
+
+        // Если получатель пустой — ставим свой адрес (перевод себе, безопасно)
+        const toInput = document.getElementById('inTo');
+        if (!toInput.value) {
+            toInput.value = CONFIG.defaultRecipient || publicKey.toBase58();
+        }
+
+        // Создаём подключение к RPC
+        const rpcUrl = document.getElementById('selNetwork').value;
+        connection = new solanaWeb3.Connection(rpcUrl, 'confirmed');
+
+        // Загружаем баланс
+        await loadBalance();
+
+        // Разблокируем кнопки
+        document.getElementById('btnSend').disabled = false;
+        document.getElementById('btnSign').disabled = false;
+
+        // Слушаем отключение
+        provider.on('disconnect', () => {
+            publicKey = null;
+            document.getElementById('walletInfo').style.display = 'none';
+            document.getElementById('btnSend').disabled = true;
+            document.getElementById('btnSign').disabled = true;
+            log('Кошелёк отключён', 'warn');
+        });
+
+    } catch (err) {
+        if (err.code === 4001 || err.message?.includes('rejected')) {
+            setS('sConnect', 'Подключение отклонено пользователем', 'warn');
+            log('Подключение отклонено', 'warn');
+        } else {
+            setS('sConnect', 'Ошибка: ' + err.message, 'err');
+            log('Ошибка: ' + err.message, 'err');
+        }
+    }
+}
+
+async function loadBalance() {
+    try {
+        const bal = await connection.getBalance(publicKey);
+        const sol = bal / solanaWeb3.LAMPORTS_PER_SOL;
+        document.getElementById('wBal').textContent = `Баланс: ${sol.toFixed(6)} SOL`;
+        log(`Баланс: ${sol.toFixed(6)} SOL`, 'info');
+    } catch (e) {
+        document.getElementById('wBal').textContent = 'Баланс: ошибка загрузки';
+        log('Ошибка загрузки баланса: ' + e.message, 'err');
+    }
+}
+
+function onNetworkChange() {
+    const rpcUrl = document.getElementById('selNetwork').value;
+    connection = new solanaWeb3.Connection(rpcUrl, 'confirmed');
+    log('Сеть: ' + rpcUrl, 'info');
+    if (publicKey) loadBalance();
+}
+
+// ============================================================
+//  ШАГ 2: ПЕРЕВОД SOL
+// ============================================================
+
+async function doSendSOL() {
+    const toStr = document.getElementById('inTo').value.trim();
+    const amountStr = document.getElementById('inAmount').value.trim();
+
+    if (!toStr) {
+        setS('sSend', 'Введи адрес получателя', 'err');
+        return;
+    }
+
+    let toPubkey;
+    try {
+        toPubkey = new solanaWeb3.PublicKey(toStr);
+    } catch {
+        setS('sSend', 'Неверный Solana-адрес', 'err');
+        return;
+    }
+
+    const amountSOL = parseFloat(amountStr) || 0;
+    const lamports = Math.round(amountSOL * solanaWeb3.LAMPORTS_PER_SOL);
+
+    log(`Создаём транзакцию: ${amountSOL} SOL → ${toStr.slice(0,8)}...`, 'info');
+
+    try {
+        // Получаем свежий blockhash (нужен для каждой транзакции)
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+
+        // Создаём транзакцию
+        const transaction = new solanaWeb3.Transaction({
+            recentBlockhash: blockhash,
+            feePayer: publicKey,
+        });
+
+        // Добавляем инструкцию перевода SOL
+        transaction.add(
+            solanaWeb3.SystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: toPubkey,
+                lamports: lamports,
+            })
+        );
+
+        log('Транзакция создана, запрос подписи...', 'info');
+
+        // >>>>>>> ВОТ ТУТ ПОЯВЛЯЕТСЯ SIGNING REQUEST! <<<<<<<
+        // Кошелёк покажет попап с деталями транзакции
+        const { signature } = await provider.signAndSendTransaction(transaction);
+
+        setS('sSend', 'Отправлено! Signature: ' + signature, 'ok');
+        log('TX: ' + signature, 'ok');
+
+        // Обновляем баланс через пару секунд
+        setTimeout(loadBalance, 3000);
+
+    } catch (err) {
+        if (err.code === 4001 || err.message?.includes('rejected') || err.message?.includes('cancelled')) {
+            setS('sSend', 'Транзакция отклонена пользователем', 'warn');
+            log('TX отклонена', 'warn');
+        } else {
+            setS('sSend', 'Ошибка: ' + err.message, 'err');
+            log('Ошибка: ' + err.message, 'err');
+        }
+    }
+}
+
+// ============================================================
+//  ШАГ 3: ПОДПИСЬ СООБЩЕНИЯ
+// ============================================================
+
+async function doSignMsg() {
+    let msg = document.getElementById('inMsg').value;
+    msg = msg.replace('{{TS}}', Date.now().toString());
+
+    log('Запрос подписи сообщения...', 'info');
+
+    try {
+        const encoded = new TextEncoder().encode(msg);
+
+        // signMessage — кошелёк покажет попап подписи (без газа!)
+        const { signature } = await provider.signMessage(encoded, 'utf8');
+
+        const sigHex = Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join('');
+        setS('sSign', 'Подписано! Sig: ' + sigHex.slice(0, 40) + '...', 'ok');
+        log('Сообщение подписано', 'ok');
+
+    } catch (err) {
+        if (err.code === 4001 || err.message?.includes('rejected')) {
+            setS('sSign', 'Подпись отклонена', 'warn');
+            log('Подпись отклонена', 'warn');
+        } else {
+            setS('sSign', 'Ошибка: ' + err.message, 'err');
+            log('Ошибка: ' + err.message, 'err');
+        }
+    }
+}
+
+// ============================================================
+//  УТИЛИТЫ
+// ============================================================
+
+function setS(id, msg, type) {
+    const el = document.getElementById(id);
+    el.className = 'status ' + type;
+    el.textContent = msg;
+}
+
+function log(msg, type = '') {
+    const box = document.getElementById('logBox');
+    const t = new Date().toLocaleTimeString('ru');
+    const div = document.createElement('div');
+    div.className = 'log-line' + (type ? ' l-' + type : '');
+    div.textContent = `[${t}] ${msg}`;
+    box.prepend(div);
+    console.log(`[${type}]`, msg);
+}
+
+// Применяем дефолтные значения из CONFIG
+document.getElementById('inAmount').value = CONFIG.defaultAmount;
+</script>
+
+</body>
+</html>

